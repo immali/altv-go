@@ -10,9 +10,10 @@ import (
 
 import "C"
 
+// ResourceImpl in go
 type ResourceImpl struct {
-	impl   uintptr
-	module *Module
+	altImpl uintptr
+	module  *Module
 }
 
 func (r *ResourceImpl) makeClient(_, altInfo uintptr) uintptr {
@@ -42,7 +43,7 @@ func (r *ResourceImpl) onEvent(res, altEvent uintptr) uintptr {
 
 	eventID := events.GetEventID(r.module.dll, altEvent)
 
-	fmt.Printf("Event (%d) for resource %s \n", eventID, name)
+	_module.logInfo(fmt.Sprintf("Event (%d) for resource %s", eventID, name))
 
 	// switch eventID {
 	// case events.PLAYER_CONNECT:
@@ -63,55 +64,8 @@ func (r *ResourceImpl) onRemoveBaseObjectCallback() uintptr {
 }
 
 func (r *ResourceImpl) createImpl(_, resource uintptr) uintptr {
-	fmt.Println("Create Resource Impl")
 	proc := r.module.dll.MustFindProc("alt_CAPIResource_Impl_Create")
 
-	// MakeClientCallback := syscall.NewCallback(func(info uintptr) uintptr {
-	// 	crInfo := GetCreationInfo(info)
-	// 	crInfo.SetType("js")
-
-	// 	return BoolPtr(true)
-	// })
-
-	// StartCallback := syscall.NewCallback(func() uintptr {
-	// 	fmt.Println("Start Resource")
-
-	// 	return 1
-	// })
-
-	// StopCallback := syscall.NewCallback(func() uintptr {
-	// 	fmt.Println("Stop Resource")
-	// 	return 0
-	// })
-
-	// OnEventCallback := syscall.NewCallback(func(_, altEvent uintptr) uintptr {
-	// 	proc := r.module.dll.MustFindProc("alt_CEvent_GetType")
-	// 	ret, _, _ := proc.Call(altEvent)
-
-	// 	switch int(ret) {
-	// 	case events.NONE:
-	// 		{
-	// 			break
-	// 		}
-
-	// 	case events.PLAYER_CONNECT:
-	// 		{
-	// 			break
-	// 		}
-	// 	}
-
-	// 	fmt.Printf("Event with ID: %d happened\n", int(ret))
-
-	// 	return 0
-	// })
-
-	// OnCreateBaseObjectCallback := syscall.NewCallback(func() uintptr {
-	// 	return 0
-	// })
-
-	// OnDeleteBaseObjectCallback := syscall.NewCallback(func() uintptr {
-	// 	return 0
-	// })
 	MakeClient := syscall.NewCallback(r.makeClient)
 	Start := syscall.NewCallback(r.start)
 	Stop := syscall.NewCallback(r.stop)
@@ -121,12 +75,16 @@ func (r *ResourceImpl) createImpl(_, resource uintptr) uintptr {
 
 	ret, _, _ := proc.Call(resource, MakeClient, Start, Stop, OnEvent, OnCreateBaseObject, OnRemoveBaseObject)
 
+	r.altImpl = ret
 	return ret
 }
 
-func NewResourceImpl(m *Module) *ResourceImpl {
-	r := &ResourceImpl{}
-	r.module = m
+// NewResourceImpl creates a new ResourceImpl
+func NewResourceImpl(r *Runtime) func(altRuntime, altResource uintptr) uintptr {
+	impl := &ResourceImpl{}
+	impl.module = r.module
 
-	return r
+	r.resourceImpl = append(r.resourceImpl, impl)
+
+	return impl.createImpl
 }

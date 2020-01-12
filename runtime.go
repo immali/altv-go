@@ -1,20 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"syscall"
 )
 
+// Runtime runtime in go
 type Runtime struct {
-	runtime      uintptr
-	resourceImpl *ResourceImpl
+	altRuntime   uintptr
+	resourceImpl []*ResourceImpl
 	module       *Module
-}
-
-func (r *Runtime) createImpl() uintptr {
-	r.resourceImpl = NewResourceImpl(r.module)
-
-	return TooPtr(true)
 }
 
 func (r *Runtime) onTick() uintptr {
@@ -28,30 +22,29 @@ func (r *Runtime) destroyImpl() uintptr {
 func (r *Runtime) register() bool {
 	proc := r.module.dll.MustFindProc("alt_ICore_RegisterScriptRuntime")
 	resPtr := StrPtr("go")
-	ret, _, _ := proc.Call(r.module.core, resPtr, r.runtime)
+	ret, _, _ := proc.Call(r.module.altCore, resPtr, r.altRuntime)
 
 	if i := int(ret); i == 1 {
-		fmt.Println("Registered")
 		return true
 	}
 
-	fmt.Println("Not registered")
 	return false
 }
 
+// NewRuntime creates a new runtime
 func NewRuntime(m *Module) *Runtime {
 	r := &Runtime{module: m}
 
-	r.resourceImpl = NewResourceImpl(m)
+	r.resourceImpl = []*ResourceImpl{}
 
-	CreateImpl := syscall.NewCallback(r.resourceImpl.createImpl)
+	CreateImpl := syscall.NewCallback(NewResourceImpl(r))
 	DestroyImpl := syscall.NewCallback(r.destroyImpl)
 	OnTick := syscall.NewCallback(r.onTick)
 
 	proc := m.dll.MustFindProc("alt_CAPIScriptRuntime_Create")
 	ret, _, _ := proc.Call(CreateImpl, DestroyImpl, OnTick)
 
-	r.runtime = ret
+	r.altRuntime = ret
 	r.register()
 
 	return r

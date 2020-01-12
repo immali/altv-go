@@ -13,10 +13,12 @@ func GetSDKVersion() int {
 }
 
 //export altMain
-func altMain(core uintptr) bool {
+func altMain(altCore uintptr) bool {
 	initModule()
 
-	_module.core = core
+	_module.altCore = altCore
+
+	_module.logInfo("=== Module Initialized ===")
 	_module.createRuntime()
 
 	return true
